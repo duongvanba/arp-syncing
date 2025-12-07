@@ -1,4 +1,4 @@
 # https://developers.home-assistant.io/docs/add-ons/repository#repository-configuration
-name: Tuya2Matter Add-ons
+name: Modem ARP Syncing
 url: 'https://github.com/duongvanba/arp-syncing'
 maintainer: Mike duongvanba.agency@gmail.com
