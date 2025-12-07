@@ -29,20 +29,25 @@ export class ViettelService {
                 })
                 const vt = new ViettelModem(MODEM_IP!)
                 await vt.login(MODEM_USERNAME!, MODEM_PASSWORD!)
-                const hosts =  await vt.getArpTable()
+                const hosts = await vt.getArpTable()
                 const onlines = hosts.filter(h => h.status == 1)
                 console.log(`Found ${onlines.length} online hosts from Viettel modem`)
                 return onlines
             }),
-            mergeAll(), 
-            mergeMap(async ({ destip, macaddr,interface: i }) => {
+            mergeAll(),
+            mergeMap(async ({ destip, macaddr, interface: i }) => {
                 console.log(`Set ARP entry: ${destip} -> ${macaddr}`)
-                try{
-                    // execSync(`arp -s ${destip} ${macaddr}`)
-                    execSync(`ip neigh add ${destip} lladdr ${macaddr} dev ${i} nud permanent`)
-                }catch(e){
-                    console.error(`Failed to set ARP entry for ${destip}: ${(e as Error).message}`)
+                try {
+                    execSync(`arp -s ${destip} ${macaddr}`)
+                } catch (e) {
+                    try {
+                        execSync(`ip neigh replace ${destip} lladdr ${macaddr} dev ${i} nud permanent`)
+                    } catch (e) {
+                        console.error(`Failed to set ARP entry for ${destip}: ${(e as Error).message}`)
+                    }
+
                 }
+
             }),
             catchError(() => EMPTY),
             finalize(() => {
