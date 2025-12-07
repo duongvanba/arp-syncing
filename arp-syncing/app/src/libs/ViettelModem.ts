@@ -16,7 +16,11 @@ export class ViettelModem {
     #client: Got
     #cookies = new Map<string, string>()
 
-    constructor(private ip: string) {
+    constructor(private ip: string, cookie?: string) {
+        cookie && cookie.split(";").forEach(c => {
+            const [k, v] = c.split("=", 2)
+            this.#cookies.set(k.trim(), v.trim())
+        })
         const options: ExtendOptions = {
             prefixUrl: `https://${this.ip}/`,
             responseType: "json",
@@ -27,7 +31,11 @@ export class ViettelModem {
                 try {
                     return JSON.parse(t)
                 } catch (e) {
-                    return parser.parse(t).ajax_response_xml_root
+                    try {
+                        return parser.parse(t).ajax_response_xml_root
+                    } catch (e) {
+                        return null
+                    }
                 }
             },
             cookieJar: new CookieJar(),
@@ -46,8 +54,10 @@ export class ViettelModem {
                                 buffer
                             );
                             o.headers['check'] = encrypted.toString("base64")
-                            const cookie = Array.from(this.#cookies.entries()).map(([k, v]) => `${k}=${v}`).join("; ")
-                            o.headers.cookie = cookie 
+                            const cookie = Array.from(this.#cookies.entries()).map(
+                                ([k, v]) => `${k}=${v}`
+                            ).join("; ")
+                            o.headers.cookie = cookie
                         }
                     }
                 ],
@@ -65,12 +75,13 @@ export class ViettelModem {
         this.#client = got.extend(options)
     }
 
-    async get<T>(type: string, tag: string) {
+    async get<T>(type: string, tag: string, searchParams: Record<string, string | number> = {} = {}) {
         return await this.#client.get("", {
             searchParams: {
                 _type: type,
                 _tag: tag,
-                __: Date.now()
+                __: Date.now(),
+                ...searchParams
             }
         }).json<T & { sess_token: string }>()
     }
@@ -85,9 +96,10 @@ export class ViettelModem {
         }).json<T & { sess_token: string }>()
     }
 
-    async login(username: string, password: string) {
+    async login(username: string, password: string) { 
+
         const seq = await this.get<number>('loginData', 'login_token')
-        const hash = createHash("sha256").update(`${password}${seq}`).digest("hex") 
+        const hash = createHash("sha256").update(`${password}${seq}`).digest("hex")
 
         const rs2 = await this.post<{
             sess_token: string
@@ -99,13 +111,13 @@ export class ViettelModem {
             _sessionTOKEN: ''
         })
         if (rs2.loginErrMsg) throw new Error(`Login failed: ${rs2.loginErrMsg}`)
-        console.log(rs2)
     }
 
 
     async getArpTable() {
 
 
+        await this.get('menuView', 'arpTable', { Menu3Location: 0 })
         await this.get('menuData', 'arp_arptable_lua.lua')
 
         const rs = await this.post<{
@@ -120,7 +132,7 @@ export class ViettelModem {
         }>('menuData', 'arp_arptable_lua.lua', {
             IF_ACTION: 'DISPALL'
         })
-        
+
         const devices = (rs?.OBJ_GETARPINST_ID?.Instance || []).map(e => {
             return e.ParaName.reduce((p, c, i) => {
                 return {
